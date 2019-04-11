@@ -2795,7 +2795,7 @@ static void h264e_vlc_encode(bs_t *bs, int16_t *quant, int maxNumCoeff, uint8_t 
         }
     } while (--cloop);
     quant += maxNumCoeff;
-    nnz = quant - levels;
+    nnz =(int)( quant - levels);
 
     if (nnz)
     {

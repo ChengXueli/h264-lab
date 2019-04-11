@@ -112,9 +112,9 @@ void h264e_thread_pool_run(void *pool, void (*callback)(void*), void *callback_j
 
 struct
 {
-    const char *input_file;
-    const char *recon_file;
-    const char *output_file;
+    char *input_file;
+    char *recon_file;
+    char *output_file;
     int gen, gop, qp, kbps, max_frames, threads, speed, denoise, stats, psnr;
 } cmdline[1];
 
