@@ -4,6 +4,14 @@ REM 当前路径：			%cd%
 REM 当前执行命令行：	%0
 REM 当前bat文件路径：	%~dp0
 REM 当前bat文件短路径：	%~sdp0
+if "%VS140COMNTOOLS%" == "" (
+  REM 2017 150
+  REM 2015 140
+  REM 2013 120
+  
+  msg "%username%" "Visual Studio 2015 not detected"
+  exit 1
+)
 
 if not exist %~dp0..\build (
     echo Create Directory: %~dp0..\build
