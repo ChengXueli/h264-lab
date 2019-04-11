@@ -4722,7 +4722,7 @@ l_skip:
 */
 static void intra_choose_4x4(h264e_enc_t *enc)
 {
-    int i, n, a, nz_mask = 0, avail = mb_avail_flag(enc);
+    int i, MBIdx, a, nz_mask = 0, avail = mb_avail_flag(enc);
     scratch_t *qv = enc->scratch;
     pix_t *mb_dec = enc->dec.yuv[0];
     pix_t *dec = enc->ptest;
@@ -4734,6 +4734,8 @@ static void intra_choose_4x4(h264e_enc_t *enc)
     const uint32_t *top32 = (const uint32_t*)(enc->top_line + 48 + enc->mb.x*32);
     pix_t *left = enc->top_line;
 
+    // 初始化左侧以及上册预测样条。
+    // 应该是为了对齐4字节，所以left处预留了两个字节。
     edge[-1] = enc->top_line[32];
     for (i = 0; i < 16; i++)
     {
@@ -4745,39 +4747,40 @@ static void intra_choose_4x4(h264e_enc_t *enc)
     }
     edge32[4] = top32[8];
 
-    for (n = 0; n < 16; n++)
+    // 循环遍历4x4的宏块
+    for (MBIdx = 0; MBIdx < 16; MBIdx++)
     {
         static const uint8_t block2avail[16] = {
             0x07, 0x23, 0x23, 0x2b, 0x9b, 0x77, 0xff, 0x77, 0x9b, 0xff, 0xff, 0x77, 0x9b, 0x77, 0xff, 0x77,
         };
-        pix_t *block;
-        pix_t *blockin;
+        pix_t *block;    // 重构像素
+        pix_t *blockin;  // 信源像素cache
         int sad, mpred, mode;
-        int r = n >> 2;
-        int c = n & 3;
-        int8_t *ctx_l = (int8_t *)enc->i4x4mode + r;
-        int8_t *ctx_t = (int8_t *)enc->i4x4mode + 4 + enc->mb.x*4 + c;
-        edge = ((pix_t*)edge_store) + 3 + 16 + 1 + 4*c - 4*r;
+        int IdxAs8x8 = MBIdx >> 2;
+        int IdxIn8x8 = MBIdx & 3;
+        int8_t *ctx_l = (int8_t *)enc->i4x4mode + IdxAs8x8;
+        int8_t *ctx_t = (int8_t *)enc->i4x4mode + 4 + enc->mb.x * 4 + IdxIn8x8;
+        edge = ((pix_t*)edge_store) + 3 + 16 + 1 + 4 * IdxIn8x8 - 4 * IdxAs8x8;
 
         a = avail;
-        a &= block2avail[n];
-        a |= block2avail[n] >> 4;
+        a &= block2avail[MBIdx];
+        a |= block2avail[MBIdx] >> 4;
 
-        if (!(block2avail[n] & AVAIL_TL)) // TL replace
+        if (!(block2avail[MBIdx] & AVAIL_TL)) // TL replace
         {
-            if ((n <= 3 && (avail & AVAIL_T)) ||
-                (n  > 3 && (avail & AVAIL_L)))
+            if ((MBIdx <= 3 && (avail & AVAIL_T)) ||
+                (MBIdx  > 3 && (avail & AVAIL_L)))
             {
                 a |= AVAIL_TL;
             }
         }
-        if (n < 3 && (avail & AVAIL_T))
+        if (MBIdx < 3 && (avail & AVAIL_T))
         {
             a |= AVAIL_TR;
         }
 
-        blockin = enc->scratch->mb_pix_inp + (c + r*16)*4;
-        block = dec + (c + r*16)*4;
+        blockin = enc->scratch->mb_pix_inp + (IdxIn8x8 + IdxAs8x8 *16)*4;
+        block = dec + (IdxIn8x8 + IdxAs8x8 *16)*4;
 
         mpred = MIN(*ctx_l, *ctx_t);
         if (mpred < 0)
@@ -4797,22 +4800,22 @@ static void intra_choose_4x4(h264e_enc_t *enc)
         {
             mode--;
         }
-        enc->mb.i4x4_mode[n] = (int8_t)mode;
+        enc->mb.i4x4_mode[MBIdx] = (int8_t)mode;
 
         nz_mask <<= 1;
         if (sad > g_skip_thr_i4x4[enc->rc.qp])
         {
             //  skip transform on low SAD gains just about 2% for all-intra coding at QP40,
             //  for other QP gain is minimal, so SAD check do not used
-            nz_mask |= h264e_transform_sub_quant_dequant(blockin, block, 16, QDQ_MODE_INTRA_4, qv->qy + n, enc->rc.qdat[0]);
+            nz_mask |= h264e_transform_sub_quant_dequant(blockin, block, 16, QDQ_MODE_INTRA_4, qv->qy + MBIdx, enc->rc.qdat[0]);
 
             if (nz_mask & 1)
             {
-                h264e_transform_add(block, 16, block, qv->qy + n, 1, ~0);
+                h264e_transform_add(block, 16, block, qv->qy + MBIdx, 1, ~0);
             }
         } else
         {
-            memset((qv->qy+n), 0, sizeof(qv->qy[0]));
+            memset((qv->qy + MBIdx), 0, sizeof(qv->qy[0]));
         }
 
         cost += sad;

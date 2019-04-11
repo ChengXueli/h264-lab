@@ -474,7 +474,11 @@ int main(int argc, char *argv[])
     init_options();
 
     if (!read_cmdline_options(argc, argv))
+    {
+        destory_options();
         return 1;
+    }
+        
     fnin  = cmdline->input_file;
     fnout = cmdline->output_file;
 
